@@ -2,6 +2,7 @@ import UseContext from '../Context'
 import { useContext, useEffect, useState } from "react";
 import Draggable from 'react-draggable'
 import { motion } from 'framer-motion';
+import { SketchPicker } from 'react-color';
 import settingIcon from '../assets/setting.png'
 import bgPic from '../assets/bgpc.png'
 import bg0 from '../assets/bg0.png'
@@ -24,7 +25,11 @@ import eff6 from '../assets/glitch2.gif'
 import '../css/BgSetting.css'
 
 
+
 function BgSetting() {
+  
+  const [pickerPanel, setPickerPanel] = useState(false)
+  const [userPickedColor, setUserPickedColor] = useState('')
   const [bgTap, setBgTap] = useState(true)
   const [effectTap, setEffectTap] = useState(false)
   const [ barcolor, setBarcolor ] = useState(null)
@@ -49,6 +54,7 @@ function BgSetting() {
   const [ selectedBg2Effect, setSelectedBg2Effect ] = useState(null)
 
   const { 
+    tileBG, setTileBG,
     themeDragBar, setThemeDragBar,
     BgSettingExpand ,setBgSettingExpand,
     StyleHide,
@@ -71,6 +77,7 @@ function BgSetting() {
 
       const colorOptions = [
         { value: 1, label: '(None)', color: '#098684', image: bg0, barColor: '#14045c'},
+        { value: 13, label: 'Choose your favorite color', color: userPickedColor, image: userPickedColor, barColor: userPickedColor},
         { value: 2, label: 'Purple Summer', color: '#3F4565', image: bg1, barColor: '#3F4565'},
         { value: 3, label: 'Matt Blue', color: '#456EA6', image: bg2, barColor: '#456EA6'},
         { value: 4, label: 'Matt Green', color: '#008081', image: bg3, barColor: '#008081'},
@@ -93,6 +100,16 @@ function BgSetting() {
         { value: 6, label: 'Glitch', image: eff5},
         { value: 7, label: 'Glitch Two', image: eff6},
       ];
+
+      useEffect(() => { // force set background and effect when app opened for color picker
+        if (userPickedColor) {
+          setThemeColor(userPickedColor);
+          setBarcolor(userPickedColor);
+          setImgBgPreview(userPickedColor);
+        }
+      }, [userPickedColor]);
+
+
       
       function setbgColorFunction2(index) {
         const selectedOption = colorOptions.find(option => option.value === index);
@@ -117,7 +134,7 @@ function BgSetting() {
       useEffect(() => { // when exited app, make set everything to null to prevent bug when reopen
 
         if(!BgSettingExpand.show) {
-          setImgBgPreview(null)
+          setImgBgPreview(null) // set default preview to teal green
           setImgBgPreviewEffect(null)
           setSelectedBg2(null)
           setSelectedBg2Effect(null)
@@ -134,11 +151,13 @@ function BgSetting() {
 
         if (localEffect) { // for effect
           rootEffect.style.setProperty('--before-bg-image', `url(${localEffect})`);
+
         }
 
         if (localBg) { // for background
           bodyBG.style.backgroundColor = localtheme
           bodyBG.style.backgroundImage = `url(${localBg})`;
+          setTileBG(localtheme)
         }
       },[])
 
@@ -206,6 +225,7 @@ function BgSetting() {
           localStorage.setItem('barcolor', barcolor); // set barcolor in localstroage
           setLocalBg(ImgBgPreview)
           setLocalTheme(themeColor)
+          setTileBG(themeColor)
         } 
         return;
       }
@@ -230,6 +250,7 @@ function BgSetting() {
             onClick={(e) => {
               e.stopPropagation();
               handleSetFocusItemTrue('Settings');
+              setPickerPanel(false)
             }}
             style={ BgSettingExpand.expand ? inlineStyleExpand('Settings') : inlineStyle('Settings')}>
           <div className="folder_dragbar_bgsetting"
@@ -261,6 +282,7 @@ function BgSetting() {
                   onClick={!isTouchDevice ? () => {
                     cancelBg()
                     deleteTap('Settings')
+                    setPickerPanel(false);
                   }
                   : undefined}
                   onTouchEnd={() => {
@@ -317,11 +339,26 @@ function BgSetting() {
                 className='bgsetting_img'
                 src={bgPic}
               />
-              <div className="preview_bg">
+              <div className="preview_bg"
+                style={{ backgroundColor: userPickedColor ? userPickedColor : '' }}
+              >
                 {ImgBgPreview && (
                   <img src={ImgBgPreview} alt='' />
                 )}
               </div>
+              {pickerPanel && (
+                <div className='color_picker_container'
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <SketchPicker
+                    color={userPickedColor}
+                    onChange={color => {
+                      const newColor = color.hex
+                      setUserPickedColor(newColor)
+                    }}
+                  />
+                </div>
+)}
               <div className="bgsettingtext_container">
                 <div className="wallpaper">
                   <p>Wallpaper</p>
@@ -330,7 +367,12 @@ function BgSetting() {
                     {colorOptions.map((option) => (
                       <ul
                         key={option.value}
-                        onClick={() => setbgColorFunction2(option.value)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setbgColorFunction2(option.value)
+                          option.value === 13 ? setPickerPanel(true)
+                        : setPickerPanel(false)
+                        }}
                         style={
                           selectedBg2 === option.value
                             ? { background: '#040482', color: 'white' }
@@ -338,6 +380,12 @@ function BgSetting() {
                         }
                       >
                         {option.label}
+                        {option.value === 13 && (
+                          <span 
+                            style={{ position: 'relative', left: '8px'}}>
+                            {userPickedColor}
+                          </span>
+                        )}
                       </ul>
                     ))}
                   </div>

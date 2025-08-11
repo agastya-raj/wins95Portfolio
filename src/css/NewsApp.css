@@ -18,6 +18,11 @@
 
 }
 
+/* Ensure 2 items per row with spacing */
+.news_container > * {
+    flex: 0 0 calc(50% - 10px);
+}
+
 .news_container h1 {
     position: absolute;
     z-index: 2;
@@ -71,7 +76,46 @@
 
 .news_container::-webkit-scrollbar {
     width: 0px;
+}
 
+.weather_container {
+    display: flex;
+    position: absolute;
+    width: fit-content;
+    top: 1.1rem;
+    right: 1.5rem;
+    gap: 3px;
+    z-index: 9999999999;
+}
+
+.weather_container h1 {
+    position: relative;
+    font-size: 16px;
+    margin: 0;
+}
+
+
+.weather_container .location {
+    position: relative;
+    font-size: 14px;
+    right: 4.5px;
+    top: 3.5px;
+    color: #f2f2f2;
+    cursor: pointer;
+} 
+
+.weather_container .location:hover {
+    color: #474747;
+}
+
+.temp {
+   position: relative;
+   margin-left: 4px;
+   cursor: pointer;
+}
+
+.temp:hover {
+   color: #474747; 
 }
 
 

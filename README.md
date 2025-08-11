@@ -136,6 +136,26 @@ All the functionalities
     - can display tatest news by clicking on the article
     - connected to back-end
 
+  - Added Tempature on news App 18/06/2025
+    - can detect user's location
+    - able to switch between Celcius and Farenheit 21/06/2025
+
+  - Added Patch App 21/06/2025
+  - Now weather prediction can track user's local time 22/6/2025
+  - Added Weather 🌙 sticker when its night time 22/6/2025
+
+  - Added color picker to Settings for background customization. 26/06/2025
+
+  - Added 3D Object in Project folder. 10/07/2025
+  - Added AI Chat Bot to MSN app. 18/07/2025
+  - Chat Bot is able to be switched on/off
+  - Added Weekly Fortune Teller in Project folder. 21/07/2025
+  - Added Tile grid App **Inspired from Windows 10 and windows phone  10/27/2025
+  - Added fetching background from tile screen mode with toggle on/off 30/07/2025
+  - Added Icons on Tile screen 31/07/2025
+  - Added Added Reconnect to MSN chat 03/08/2025
+
+
 Library used:
   - React Draggable => drag and drop functionality
   - Framer-motion => for some animation

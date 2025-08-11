@@ -7,7 +7,11 @@ import chat from '../assets/chat.png';
 import '../css/MSN.css';
 
 function MsnFolder() {
+
   const {
+    connectWebSocket,
+    websocketConnection,
+    chatBotActive, setChatBotActive,
     onlineUser,
     loadedMessages, setLoadedMessages,
     themeDragBar,
@@ -270,14 +274,34 @@ useEffect(() => {
 
             </div>
             <span>Username: {userNameValue ? userNameValue : 'Anonymous'}</span>
-
+            <div className={`activate_bot ${chatBotActive ? 'active' : ''}`}
+              onClick={() => setChatBotActive(!chatBotActive)}
+            >
+              <span>{chatBotActive? 'Bot Online' : 'Bot Offline' }</span>
+            </div>     
           </div>
           <div className="chat_to_div">
             <span>
               Online User: <span>{onlineUser}</span>
             </span>
           </div>
-          <div className="folder_content-MSN">
+          
+          <div className="folder_content-MSN"
+            style={{ 
+              background: !websocketConnection ? 'rgba(0, 0, 0, 0.426)' : '',
+            }}
+          >
+            {!websocketConnection && (
+              <div className="reconnect_container">
+                <p
+                  onClick={() => {
+                    connectWebSocket()
+                  }}
+                >
+                  Click here to reconnect
+                </p>
+              </div>
+            )}
             {chatData.length === 0 &&  (
               <span style={{ position: 'relative', fontSize: '13px' }}>
                 LOADING.......
@@ -285,18 +309,19 @@ useEffect(() => {
             )}
             <div ref={topOfMessagesRef} /> {/* Ref to track the top of the chat container */}
             {loadedMessages?.map((chat, index) => (            
-              chat && (
+              chat.chat.length > 0 && (
                 <div className='text_container' key={index}>
                   <p>
-                    <span style={{ color: chat?.dev ? 'red' : 'blue' }}>&lt;{chat?.dev ? 'Dev' : chat.name}&gt;: </span>
-                    <span style={{ color: chat?.dev ? 'red' : '#171616' }}>{chat.chat}</span>
+                    <span style={{ color: chat?.dev ? 'red' : chat.bot ? 'purple' : 'blue' }}>&lt;{chat?.dev ? 'Dev' : chat.name}&gt;: </span>
+                    <span style={{ color: chat?.dev ? 'red' : chat.bot ? 'purple' : '#171616' }}>{chat.chat}</span>
                   </p>
                 </div>
               )
             ))}
+            
             <div ref={endOfMessagesRef} />
           </div>
-
+            
           <div className="enter_text_div">
             <textarea
               maxLength={100}

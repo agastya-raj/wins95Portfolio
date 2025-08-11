@@ -29,6 +29,8 @@ import axios from 'axios';
 import loadingSpin from './assets/loading.gif'
 import NewsApp from './components/NewsApp'
 import SpinningCat from './components/SpinningCat';
+import Patch from './components/Patch';
+import WindowsDragLogin from './components/WindowsDragLogin';
 import { StyleHide, imageMapping,
   handleDoubleClickEnterLink,handleDoubleTapEnterMobile,
   handleDoubleClickiframe, handleDoubleTapiframeMobile,
@@ -38,6 +40,32 @@ import { StyleHide, imageMapping,
 
 
 function App() {
+  const [websocketConnection, setWebsocketConnection] = useState(false)
+  const [Cel, setCel] = useState(true); // Celsius or Fahrenheit
+  const [weather, setWeather] = useState(() => {
+        const storedTempF = localStorage.getItem('tempF');
+        const storedIconCode = localStorage.getItem('iconCode');
+        if (storedTempF && storedIconCode) {
+            return { temp: JSON.parse(storedTempF), code: parseInt(storedIconCode) };
+        }
+        return null;
+    });
+
+  const [city, setCity] = useState(() => {
+        const storedCity = localStorage.getItem('city');
+        return storedCity ? JSON.parse(storedCity) : null;
+    });
+  const [bgRotation, setBgRotation] = useState(() => {
+  const saved = JSON.parse(localStorage.getItem('isWallpaperOn'));
+    if (saved?.bgRotation !== undefined) return saved.bgRotation;
+    localStorage.setItem('isWallpaperOn', JSON.stringify({ bgRotation: true }));
+    return true;
+  });
+
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
+  const [tileBG, setTileBG] = useState('#098684')
+  const [tileScreen, setTileScreen] = useState(true)
+  const [chatBotActive, setChatBotActive] = useState(false);
   const [runCatVideo, setRunCatVideo] = useState(false)
   const [newsPopup, setNewsPopup] = useState(false)
   const [onlineUser, setOnlineUser] = useState(0)
@@ -97,7 +125,7 @@ function App() {
   const [reMountRun, setReMountRun] = useState(0)
   const [ErrorPopup, setErrorPopup] = useState(false)
   const [themeDragBar, setThemeDragBar] = useState(() => localStorage.getItem('barcolor') || '#14045c')
-  const [login, setLogin] = useState(true)
+  const [login, setLogin] = useState(false) // disable login
   const [windowsShutDownAnimation, setWindowsShutDownAnimation] = useState(false)
   const [detectMouse, setDetectMouse] = useState(false)
   const endOfMessagesRef = useRef(null);
@@ -204,6 +232,9 @@ function App() {
   const [UtilityExpand, setUtilityExpand] = useState(
     {expand: false, show: false, hide: false, focusItem: true, x: 0, y: 0, zIndex: 1,});
   
+  const [PatchExpand, setPatchExpand] = useState(
+    {expand: false, show: false, hide: false, focusItem: true, x: 0, y: 0, zIndex: 1,});
+  
     const allPicture = desktopIcon.filter(picture => picture.type === '.jpeg'); // photo open
 
   const textError = ( // error message
@@ -227,7 +258,11 @@ function App() {
   const allClears = [ClearTOclippyThanksYouFunction, ClearTOclippySendemailfunction, ClearTOSongfunction, ClearTOclippyUsernameFunction];
 
   useEffect(() => { // force user to update version by clearing their local storage!
-    const resetIcon = desktopIcon.find(icon => icon.name === 'Cat')
+    setTimeout(() => {
+      handleShow('Patch');
+    }, 2500);
+    
+    const resetIcon = desktopIcon.find(icon => icon.name === 'Fortune')
     if(!resetIcon) {
       localStorage.clear();
       location.reload();
@@ -239,6 +274,9 @@ useEffect(() => {
   const handleRightClick = (e) => {
     e.preventDefault();
 
+  if(tileScreen) {
+    return;
+  }
   
     const iconRect = refBeingClicked.current?.getBoundingClientRect();
     setRightClickPosition({ x: e.clientX, y: e.clientY });
@@ -262,11 +300,15 @@ useEffect(() => {
   return () => {
     document.removeEventListener("contextmenu", handleRightClick);
   };
-}, []);
+}, [tileScreen]);
 
 
   useEffect(() => {
     const handleTouchStart = (e) => {
+
+      if(tileScreen) {
+      return;
+      }
 
       if (dragging) return; // Prevent duplicate triggers
 
@@ -292,7 +334,7 @@ useEffect(() => {
       document.removeEventListener("touchmove", handleTouchEnd);
       document.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, []);
+  }, [tileScreen]);
 
 
   function handleMobileLongPress(e, icon) { // long press icon on mobile
@@ -354,63 +396,130 @@ useEffect(() => {
 
 
 
-  useEffect(() => {
-    let retryCount = 0;
-    const maxRetries = 10;
+    const connectWebSocket = async () => {
+      
+      try {
 
-    const connectWebSocket = () => {
-    socket.current = new WebSocket('wss://notebackend4.onrender.com');
+        // Wake up the Render backend
+        await fetch('https://notebackend-wrqt.onrender.com/ping');
 
-    socket.current.onopen = () => {
-      retryCount = 0; 
-      setLoading(false)
+        // Close existing socket if still open or connecting
+        if (socket.current && socket.current.readyState !== WebSocket.CLOSED) {
+          // Remove old listeners
+          socket.current.onopen = null;
+          socket.current.onclose = null;
+          socket.current.onerror = null;
+          socket.current.onmessage = null;
+
+          // Close and wait for complete shutdown
+          socket.current.close();
+
+          await new Promise(resolve => {
+            socket.current.onclose = () => {
+              setWebsocketConnection(false);
+              resolve();
+            };
+          });
+        }
+
+        // Create new WebSocket instance
+        socket.current = new WebSocket('wss://notebackend-wrqt.onrender.com');
+
+        socket.current.onopen = () => {
+          console.log('WebSocket connected');
+          getChat()
+          setWebsocketConnection(true);
+          setLoading(false);
+        };
+
+        socket.current.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+
+          if (data.count !== undefined) {
+            setOnlineUser(data.count);
+          }
+
+          if (data.key) {
+            setKeyChatSession(data.key);
+          } else if (data.name && data.chat) {
+            setChatData(prevData => [...prevData, data]);
+            setLoadedMessages(prev => [...prev, data]);
+            setAllowNoti(true);
+
+            setTimeout(() => {
+              endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, 100);
+          }
+        };
+
+        socket.current.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          setLoading(false);
+          setWebsocketConnection(false);
+        };
+
+        socket.current.onclose = () => {
+          console.log('🔌 WebSocket closed');
+          setWebsocketConnection(false);
+        };
+
+      } catch (err) {
+        console.error('WebSocket connection error:', err);
+        setLoading(false);
+        setWebsocketConnection(false);
+      }
     };
 
-    socket.current.onmessage = (event) => {
-      const data = JSON.parse(event.data)
+    useEffect(() => {
+      setLoading(true);
+      connectWebSocket();
 
-      if (data.count !== undefined) {
-        setOnlineUser(data.count);
-    }
-      
-      if (data.key) {
-        setKeyChatSession(data.key)
-      } else if (data.name && data.chat) {
-        setChatData(prevData => [...prevData, data])
-        setLoadedMessages(prevMessages => [...prevMessages, data])
-        setAllowNoti(true)
+      return () => {
+        if (socket.current) {
+          socket.current.onopen = null;
+          socket.current.onclose = null;
+          socket.current.onerror = null;
+          socket.current.onmessage = null;
+          socket.current.close();
+          setWebsocketConnection(false);
+        }
+      };
+    }, []);
 
-        // Scroll to the end of messages after updating chat data
-        setTimeout(() => {
-          endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" })
-        }, 100)
-      }
-    }
 
-    socket.current.onerror = (error) => {
-      console.error('WebSocket error:', error)
-      setLoading(false)
-    }
-    socket.current.onclose = () => {
-      if (retryCount < maxRetries) {
-        retryCount++;
-        getChat()
-        setTimeout(connectWebSocket, 1000); // Reconnect after 1 second
-      
-      } else {
-        console.log('Max retries reached. WebSocket closed permanently.');
-      }
-    };
-  };
+    useEffect(() => {
+      let invisibilityTimeout = null;
 
-  connectWebSocket();
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'hidden') {
+          // Start a 30s countdown to close socket
+          invisibilityTimeout = setTimeout(() => {
+            if (socket.current && socket.current.readyState === WebSocket.OPEN) {
+              console.log('User was invisible for 10s. Closing WebSocket.');
+              socket.current.close();
+              setWebsocketConnection(false);
+            }
+          }, 10000); 
+        } else {
+          // 
+          if (invisibilityTimeout) {
+            clearTimeout(invisibilityTimeout);
+            invisibilityTimeout = null;
+          }
+        }
+      };
 
-  return () => {
-    if (socket.current) {
-      socket.current.close();
-    }
-  };
-}, []);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        if (invisibilityTimeout) clearTimeout(invisibilityTimeout);
+      };
+    }, []);
+
+
+
+
 
   useEffect(() => { // noti
     if(allowNoti){
@@ -434,7 +543,6 @@ useEffect(() => {
 
 useEffect(() => { // touch support device === true
   iconFocusIcon('') // make icon focus goes false
-  getChat()
 
   const htmlElement = document.documentElement; //check if user is in frontend
   htmlElement.addEventListener('mouseenter', handleMouseSeen);
@@ -696,6 +804,17 @@ function handleShowInfolderMobile(name) { //important handleshow for in folder
 }
 
   const contextValue = {
+    connectWebSocket,
+    websocketConnection, setWebsocketConnection,
+    city, setCity,
+    Cel, setCel,
+    weather, setWeather,
+    bgRotation, setBgRotation,
+    backgroundImageUrl, setBackgroundImageUrl,
+    tileBG, setTileBG,
+    tileScreen, setTileScreen,
+    chatBotActive, setChatBotActive,
+    PatchExpand, setPatchExpand,
     runCatVideo, setRunCatVideo,
     newsPopup, setNewsPopup,
     onlineUser,
@@ -829,6 +948,7 @@ function handleShowInfolderMobile(name) { //important handleshow for in folder
     return(
       <UserContext.Provider value={contextValue}>
         <Login/>
+        <WindowsDragLogin/>
       </UserContext.Provider>
     )
   }
@@ -864,9 +984,19 @@ function handleShowInfolderMobile(name) { //important handleshow for in folder
     )
   }
 
+  // // show login page
+  // if(tileScreen ) {
+  //   return(
+  //     <UserContext.Provider value={contextValue}>
+  //       <WindowsDragLogin/>
+  //     </UserContext.Provider>
+  //   )
+  // }
+
   return (
     <>
       <UserContext.Provider value={contextValue}>
+      <WindowsDragLogin/>
       {regErrorPopUp && (
         <ErrorBtn
             themeDragBar={themeDragBar}
@@ -910,6 +1040,7 @@ function handleShowInfolderMobile(name) { //important handleshow for in folder
           folderName='Photo'
           photoMode={true}
         />
+        <Patch/>
         <SpinningCat/>
         <NewsApp/>
         <RightClickWindows/>
@@ -1049,6 +1180,7 @@ function handleDrop(e, name, target, oldFolderID) {
       setDetectMouse(true)
     }
 
+
     async function createChat() { // create chat
       const filter = new Filter();
   
@@ -1072,6 +1204,7 @@ function handleDrop(e, name, target, oldFolderID) {
           key: KeyChatSession,
           mouse: detectMouse,
           touch: isTouchDevice,
+          chatBotActive: chatBotActive,
       };
 
       if (userNameValue.trim().length < 1) {
@@ -1086,6 +1219,7 @@ function handleDrop(e, name, target, oldFolderID) {
       // Send the payload via WebSocket
       if (socket.current) { // Check if socket is initialized
           socket.current.send(JSON.stringify(payload));
+          console.log(payload)
       } else {
           console.error('WebSocket is not initialized.');
       }
@@ -1097,9 +1231,9 @@ function handleDrop(e, name, target, oldFolderID) {
   }
 
 
-
 // Function to fetch chat data
 async function getChat() {
+  setChatData('')
   try {
     const response = await axios.get(`https://notebackend4.onrender.com/chat/getchat/`, {
       headers: {
@@ -1120,31 +1254,50 @@ async function getChat() {
   }
 }
 
-function ObjectState() { // Add all the state realted to folder here !! very important
-  return [
-          { name: 'About', setter: setMybioExpand, usestate: MybioExpand},
-          { name: 'Resume', setter: setResumeExpand, usestate: ResumeExpand },
-          { name: 'Project', setter: setProjectExpand, usestate: ProjectExpand },
-          { name: 'Mail', setter: setMailExpand, usestate: MailExpand },
-          { name: 'Nft', setter: setNftExpand, usestate: NftExpand},
-          { name: 'Note', setter: setNoteExpand, usestate: NoteExpand },
-          { name: 'AiAgent', setter: setOpenProjectExpand, usestate: openProjectExpand },
-          { name: 'Winamp', setter: setWinampExpand, usestate: WinampExpand },
-          { name: 'ResumeFile', setter: setResumeFileExpand, usestate: ResumeFileExpand },
-          { name: 'MineSweeper', setter: setMineSweeperExpand, usestate: MineSweeperExpand },
-          { name: 'MSN', setter: setMSNExpand, usestate: MSNExpand },
-          { name: 'Internet', setter: setOpenProjectExpand, usestate: openProjectExpand },
-          { name: 'Settings', setter: setBgSettingExpand, usestate: BgSettingExpand },
-          { name: 'Run', setter: setRunExpand, usestate: RunExpand },
-          { name: 'MyComputer', setter: setMyComputerExpand, usestate: MyComputerExpand },
-          { name: 'Picture', setter: setPictureExpand, usestate: pictureExpand },
-          { name: 'Photo', setter: setPhotoOpenExpand, usestate: photoOpenExpand },
-          { name: 'RecycleBin', setter: setBinExpand, usestate: BinExpand },
-          { name: 'Paint', setter: setPaintExpand, usestate: PaintExpand },
-          { name: 'Utility', setter: setUtilityExpand, usestate: UtilityExpand },
 
-        ];
+function ObjectState() {
+  return [
+    { name: 'About',       setter: setMybioExpand,      usestate: MybioExpand,      color: 'rgba(46, 108, 176, 0.85)', size: 'small' },
+    { name: 'Resume',      setter: setResumeExpand,     usestate: ResumeExpand,     color: 'rgba(65, 138, 68, 0.85)', size: 'small' },
+    { name: 'Project',     setter: setProjectExpand,    usestate: ProjectExpand,    color: 'rgba(211, 117, 0, 0.85)', size: 'small' },
+    { name: 'Picture',     setter: setPictureExpand,    usestate: pictureExpand,    color: 'rgba(85, 50, 148, 0.85)', size: 'large' },
+    { name: 'Mail',        setter: setMailExpand,       usestate: MailExpand,       color: 'rgba(178, 26, 77, 0.85)', size: 'small' },
+    { name: 'Nft',         setter: setNftExpand,        usestate: NftExpand,        color: 'rgba(142, 29, 126, 0.85)', size: 'small' },
+    { name: 'Note',        setter: setNoteExpand,       usestate: NoteExpand,       color: 'rgba(114, 81, 54, 0.85)', size: 'small' },
+    { name: 'AiAgent',     setter: setOpenProjectExpand,usestate: openProjectExpand,color: 'rgba(82, 117, 132, 0.85)', size: 'small' },
+    { name: '3dObject',    setter: setOpenProjectExpand,usestate: openProjectExpand,color: 'rgba(0, 159, 186, 0.85)', size: 'small' },
+    { name: 'Fortune',     setter: setOpenProjectExpand,usestate: openProjectExpand,color: 'rgba(224, 88, 43, 0.85)', size: 'small' },
+    { name: 'Winamp',      setter: setWinampExpand,     usestate: WinampExpand,     color: 'rgba(105, 136, 145, 0.85)', size: 'small' },
+    { name: 'ResumeFile',  setter: setResumeFileExpand, usestate: ResumeFileExpand, color: 'rgba(133, 165, 67, 0.85)', size: 'small' },
+    { name: 'MineSweeper', setter: setMineSweeperExpand,usestate: MineSweeperExpand,color: 'rgba(187, 51, 48, 0.85)', size: 'small' },
+    { name: 'MSN',         setter: setMSNExpand,        usestate: MSNExpand,        color: 'rgba(52, 70, 143, 0.85)', size: 'small' },
+    { name: 'Internet',    setter: setOpenProjectExpand,usestate: openProjectExpand,color: 'rgba(0, 159, 186, 0.85)', size: 'small' },
+    { name: 'Settings',    setter: setBgSettingExpand,  usestate: BgSettingExpand,  color: 'rgba(140, 140, 140, 0.85)', size: 'small' },
+    { name: 'Run',         setter: setRunExpand,        usestate: RunExpand,        color: 'rgba(86, 114, 122, 0.85)', size: 'small' },
+    { name: 'MyComputer',  setter: setMyComputerExpand, usestate: MyComputerExpand, color: 'rgba(31, 122, 206, 0.85)', size: 'small' },
+    { name: 'Patch',       setter: setPatchExpand,      usestate: PatchExpand,      color: 'rgba(86, 114, 122, 0.85)', size: 'small' },
+    { name: 'Photo',       setter: setPhotoOpenExpand,  usestate: photoOpenExpand,  color: 'rgba(0, 120, 93, 0.85)', size: 'small' },
+    { name: 'RecycleBin',  setter: setBinExpand,        usestate: BinExpand,        color: 'rgba(64, 135, 66, 0.85)', size: 'small' },
+    { name: 'Paint',       setter: setPaintExpand,      usestate: PaintExpand,      color: 'rgba(193, 178, 46, 0.85)', size: 'small' },
+    { name: 'Utility',     setter: setUtilityExpand,    usestate: UtilityExpand,    color: 'rgba(116, 85, 54, 0.85)', size: 'small' },
+  ];
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function iconFocusIcon(name) { // if focus on one, the rest goes unfocus
 
@@ -1222,14 +1375,23 @@ function handleShow(name) {
         handleDoubleClickiframe('AiAgent', setOpenProjectExpand, setProjectUrl)
         handleShow('Internet');
       }
+      if(lowerCaseName === '3dobject') {
+        handleDoubleClickiframe('3dObject', setOpenProjectExpand, setProjectUrl)
+        handleShow('Internet');
+      }
+      if(lowerCaseName === 'fortune') {
+        handleDoubleClickiframe('Fortune', setOpenProjectExpand, setProjectUrl)
+        handleShow('Internet');
+      }
+      
     }
     item.setter(prev => ({...prev,focusItem: false}));
-
+    PatchExpand ? null : setTileScreen(false) // if patch in on, dont eter desktop on load
   });
   if(tap.includes(name)) return;
   setStartActive(false)
 
-  if(name === 'Run' || name === 'Nft' || name === 'Note' || name === 'AiAgent')return; // not showing run on tap
+  if(name === 'Run' || name === 'Nft' || name === 'Note' || name === 'AiAgent' || name === '3dObject' || name === 'Fortune')return; // not showing run on tap
 
   setTap(prevTap => [...prevTap, name]);
   setDesktopIcon(prevIcons => prevIcons.map(icon => ({...icon, focus: false})));
@@ -1296,14 +1458,22 @@ function handleShowMobile(name) {
           handleDoubleClickiframe('AiAgent', setOpenProjectExpand, setProjectUrl)
           handleShow('Internet');
         }
+        if(lowerCaseName === '3dobject') {
+        handleDoubleClickiframe('3dObject', setOpenProjectExpand, setProjectUrl)
+        handleShow('Internet');
+        }
+        if(lowerCaseName === 'fortune') {
+        handleDoubleClickiframe('Fortune', setOpenProjectExpand, setProjectUrl)
+        handleShow('Internet');
+      }
       }
       item.setter(prev => ({...prev,focusItem: false}));
-  
+      PatchExpand ? null : setTileScreen(false)
     });
     if(tap.includes(name)) return;
     setStartActive(false)
   
-    if(name === 'Run' || name === 'Nft' || name === 'Note' || name === 'AiAgent')return; // not showing run on tap
+    if(name === 'Run' || name === 'Nft' || name === 'Note' || name === 'AiAgent' || name === '3dObject' || name === 'Fortune')return; // not showing run on tap
   
     setTap(prevTap => [...prevTap, name]);
     setDesktopIcon(prevIcons => prevIcons.map(icon => ({...icon, focus: false})));

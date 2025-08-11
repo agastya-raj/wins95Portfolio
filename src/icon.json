@@ -313,8 +313,32 @@
         "type": "folder",
         "x": 34,
         "y": 34
+    },
+    {
+        "name": "Patch",
+        "pic": "Patch",
+        "folderId": "Utility",
+        "size": 500,
+        "type": ".exe",
+        "x": 35,
+        "y": 35
+    },
+    {
+        "name": "3dObject",
+        "pic": "3dObject",
+        "folderId": "Project",
+        "size": 1000,
+        "type": ".exe",
+        "x": 36,
+        "y": 36
+    },
+    {
+        "name": "Fortune",
+        "pic": "Fortune",
+        "folderId": "Project",
+        "size": 1900,
+        "type": ".exe",
+        "x": 37,
+        "y": 37
     }
-
-    
-
 ]
